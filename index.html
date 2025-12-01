@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Solar System - History & Facts</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #000; font-family: 'Segoe UI', sans-serif; }
+        #canvas-container { width: 100vw; height: 100vh; display: block; }
+        
+        /* UI Layer */
+        #ui-layer {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            pointer-events: none;
+            text-shadow: 0 0 10px #00d2ff;
+            z-index: 10;
+        }
+        h1 { margin: 0; font-size: 28px; letter-spacing: 2px; text-transform: uppercase; color: #00d2ff; }
+        p { margin-top: 5px; font-size: 14px; color: #aaa; }
+        
+        .instructions {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 14px;
+            pointer-events: none;
+            z-index: 10;
+            background: rgba(0,0,0,0.5);
+            padding: 5px 15px;
+            border-radius: 20px;
+        }
+
+        /* --- INFO CARD STYLES --- */
+        #info-card {
+            position: absolute;
+            top: 50%;
+            right: -500px; /* Hidden initially */
+            transform: translateY(-50%);
+            width: 350px;
+            max-height: 80vh;
+            background: rgba(10, 20, 35, 0.85);
+            backdrop-filter: blur(15px);
+            border-left: 4px solid #00d2ff;
+            border-radius: 15px 0 0 15px;
+            color: white;
+            padding: 25px;
+            box-shadow: -10px 0 30px rgba(0, 210, 255, 0.15);
+            transition: right 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 100;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #info-card.active {
+            right: 0;
+        }
+
+        #card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding-bottom: 15px;
+            margin-bottom: 15px;
+        }
+
+        #planet-name {
+            margin: 0;
+            font-size: 32px;
+            color: #00d2ff;
+            text-transform: uppercase;
+        }
+
+        #close-btn {
+            background: none;
+            border: none;
+            color: #aaa;
+            font-size: 24px;
+            cursor: pointer;
+            transition: color 0.3s;
+        }
+        #close-btn:hover { color: white; }
+
+        .info-section { margin-bottom: 20px; }
+        .info-label { 
+            font-size: 12px; 
+            color: #00d2ff; 
+            letter-spacing: 1px; 
+            text-transform: uppercase; 
+            margin-bottom: 5px; 
+            display: block;
+        }
+        .info-text { 
+            font-size: 15px; 
+            line-height: 1.6; 
+            color: #e0e0e0; 
+        }
+
+        /* Custom Scrollbar */
+        #info-card::-webkit-scrollbar { width: 6px; }
+        #info-card::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
+        #info-card::-webkit-scrollbar-thumb { background: #004e66; border-radius: 3px; }
+
+        /* Cursor pointer for clickable objects */
+        canvas { cursor: crosshair; }
+
+        /* --- CREATOR WATERMARK STYLES (New) --- */
+        #watermark {
+            position: absolute;
+            bottom: 10px;
+            right: 15px;
+            font-size: 12px;
+            color: rgba(0, 210, 255, 0.5); /* Faint blue glow */
+            pointer-events: none;
+            z-index: 10;
+        }
+    </style>
+    <!-- Load Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+
+    <div id="ui-layer">
+        <h1>Cosmic Explorer</h1>
+        <p>Interactive Real-time Simulation</p>
+    </div>
+    
+    <div class="instructions">👉 Click on any Planet or Sun to reveal secrets!</div>
+
+    <!-- Info Card HTML -->
+    <div id="info-card">
+        <div id="card-header">
+            <h2 id="planet-name">Earth</h2>
+            <button id="close-btn">&times;</button>
+        </div>
+        <div id="card-content">
+            <!-- Dynamic Content loads here -->
+        </div>
+    </div>
+    
+    <!-- Creator Watermark (New) -->
+    <div id="watermark">created by Saty Shivansh</div>
+
+    <div id="canvas-container"></div>
+
+    <script>
+        // --- 1. CELESTIAL DATA (History & Facts) ---
+        const celestialInfo = {
+            "Sun": {
+                history: "The Sun formed about 4.6 billion years ago from the gravitational collapse of matter within a region of a large molecular cloud. It is the heart of our solar system.",
+                composition: "It is a nearly perfect sphere of hot plasma, heated to incandescence by nuclear fusion reactions in its core. It radiates energy mainly as visible light and infrared radiation.",
+                facts: "• Mass: 99.86% of the Solar System\n• Surface Temp: 5,500°C\n• Core Temp: 15 million°C\n• Type: Yellow Dwarf Star"
+            },
+            "Mercury": {
+                history: "Known since ancient Sumerian times (3rd millennium BC). The Romans named it after the swift-footed messenger god because it moves so fast across the sky.",
+                composition: "Mercury is a rocky planet with a huge iron core which makes up about 75% of the planet's radius. It has a cratered surface similar to Earth's Moon.",
+                facts: "• Year: 88 Earth days\n• Day: 59 Earth days\n• Moons: 0\n• Temp: -173°C to 427°C"
+            },
+            "Venus": {
+                history: "Named after the Roman goddess of love and beauty. It is the second brightest natural object in the night sky after the Moon, observed by every ancient culture.",
+                composition: "It has a dense atmosphere of 96% carbon dioxide, trapping heat and making it the hottest planet. It rains sulfuric acid here!",
+                facts: "• Hottest Planet (462°C)\n• Rotates backwards (Retrograde)\n• Day is longer than its Year\n• Often called Earth's 'Evil Twin'"
+            },
+            "Earth": {
+                history: "Formed approximately 4.54 billion years ago. Life appeared on its surface within the first billion years. It is the only known planet to support life.",
+                composition: "71% of the surface is covered with water. The atmosphere is 78% nitrogen and 21% oxygen, creating the perfect conditions for life.",
+                facts: "• Only planet not named after a god\n• One natural satellite (The Moon)\n• Protected by a powerful magnetic field"
+            },
+            "Mars": {
+                history: "Named after the Roman god of war due to its red color (resembling blood). Explored by more rovers (like Curiosity and Perseverance) than any other planet.",
+                composition: "The red color comes from iron oxide (rust) in its soil. It has the largest volcano in the solar system, Olympus Mons.",
+                facts: "• Moons: 2 (Phobos & Deimos)\n• Gravity: 38% of Earth\n• Evidence suggests liquid water once flowed here."
+            },
+            "Jupiter": {
+                history: "Observed by Babylonians in the 7th or 8th century BC. Named after the king of the Roman gods. Galileo discovered its 4 largest moons in 1610, changing astronomy forever.",
+                composition: "A Gas Giant made mostly of Hydrogen and Helium. It lacks a well-defined solid surface.",
+                facts: "• Largest Planet (1,300 Earths fit inside)\n• Great Red Spot: A storm raging for 300+ years\n• Shortest day (only 10 hours)"
+            },
+            "Saturn": {
+                history: "The most distant planet visible to the naked eye. Galileo first saw its rings in 1610 but thought they were 'ears'. Huygens correctly identified them as rings in 1655.",
+                composition: "A Gas Giant famous for its complex ring system made of ice crystals and rock debris.",
+                facts: "• Least dense planet (would float in water)\n• 82+ Moons\n• Rings are 280,000 km wide but only 1km thick"
+            },
+            "Uranus": {
+                history: "Discovered by William Herschel in 1781 using a telescope. It was the first planet found in modern times.",
+                composition: "An 'Ice Giant'. Its blue-green color comes from methane gas in the atmosphere. It contains water, ammonia, and methane ices.",
+                facts: "• Rotates on its side (98° tilt)\n• Coldest planetary atmosphere (-224°C)\n• Has faint rings"
+            },
+            "Neptune": {
+                history: "Discovered in 1846. It was the first planet located through mathematical prediction rather than direct observation.",
+                composition: "An Ice Giant similar to Uranus. It has the strongest winds in the solar system, reaching 2,100 km/h.",
+                facts: "• Year: 165 Earth Years\n• 14 Moons (Triton is the largest)\n• Dark, cold, and whipped by supersonic winds"
+            }
+        };
+
+        // --- 2. THREE.JS SETUP ---
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x000000, 0.0008);
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 5000);
+        camera.position.set(0, 150, 350);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.minDistance = 50;
+        controls.maxDistance = 1500;
+
+        // --- 3. RAYCASTING SETUP (For Clicking) ---
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        const clickableObjects = []; // Stores planets for click detection
+        let currentMouseX = 0; // New variable for mouse X position
+
+        // --- 4. TEXTURE GENERATION ---
+        function createPlanetTexture(baseColor, type) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = baseColor;
+            ctx.fillRect(0, 0, 512, 512);
+
+            if (type === 'gas') {
+                for (let i = 0; i < 40; i++) {
+                    ctx.fillStyle = `rgba(255, 255, 255, ${Math.random() * 0.15})`;
+                    ctx.fillRect(0, Math.random() * 512, 512, Math.random() * 50 + 5);
+                }
+            } else if (type === 'terrestrial') {
+                for (let i = 0; i < 400; i++) {
+                    ctx.fillStyle = `rgba(0, 0, 0, ${Math.random() * 0.2})`;
+                    ctx.beginPath();
+                    ctx.arc(Math.random() * 512, Math.random() * 512, Math.random() * 5, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            } else if (type === 'earth') {
+                // Clouds
+                for (let i = 0; i < 60; i++) {
+                    ctx.fillStyle = `rgba(255, 255, 255, ${Math.random() * 0.6})`;
+                    ctx.beginPath();
+                    ctx.arc(Math.random() * 512, Math.random() * 512, Math.random() * 30 + 10, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        // --- 5. SCENE OBJECTS ---
+        const ambientLight = new THREE.AmbientLight(0x404040);
+        scene.add(ambientLight);
+        const pointLight = new THREE.PointLight(0xffffff, 1.5, 3000);
+        scene.add(pointLight);
+
+        // Sun
+        const sunGeo = new THREE.SphereGeometry(18, 64, 64);
+        const sunMat = new THREE.MeshBasicMaterial({ color: 0xFFD700, map: createPlanetTexture('#FF8C00', 'gas') });
+        const sun = new THREE.Mesh(sunGeo, sunMat);
+        sun.name = "Sun"; // IMPORTANT FOR CLICKING
+        scene.add(sun);
+        clickableObjects.push(sun);
+
+        // Sun Glow
+        const glowGeo = new THREE.SphereGeometry(20, 32, 32);
+        const glowMat = new THREE.MeshBasicMaterial({ color: 0xFF4500, transparent: true, opacity: 0.4, side: THREE.BackSide });
+        sun.add(new THREE.Mesh(glowGeo, glowMat));
+
+        // Planets
+        const planets = [];
+        const planetData = [
+            { name: "Mercury", r: 2, d: 40, s: 0.02, color: "#A5A5A5", type: 'terrestrial' },
+            { name: "Venus", r: 4, d: 60, s: 0.015, color: "#E3BB76", type: 'gas' },
+            { name: "Earth", r: 4.2, d: 85, s: 0.01, color: "#2233FF", type: 'earth' },
+            { name: "Mars", r: 2.5, d: 110, s: 0.008, color: "#FF4500", type: 'terrestrial' },
+            { name: "Jupiter", r: 12, d: 160, s: 0.004, color: "#D9A066", type: 'gas' },
+            { name: "Saturn", r: 10, d: 220, s: 0.003, color: "#E0C489", type: 'gas', ring: true },
+            { name: "Uranus", r: 7, d: 280, s: 0.002, color: "#4FD0E7", type: 'gas' },
+            { name: "Neptune", r: 7, d: 330, s: 0.0015, color: "#2E55E8", type: 'gas' }
+        ];
+
+        planetData.forEach(p => {
+            const grp = new THREE.Group();
+            
+            // Orbit
+            const orbitGeo = new THREE.RingGeometry(p.d - 0.2, p.d + 0.2, 128);
+            const orbitMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, transparent: true, opacity: 0.08 });
+            const orbit = new THREE.Mesh(orbitGeo, orbitMat);
+            orbit.rotation.x = Math.PI / 2;
+            scene.add(orbit);
+
+            // Planet Mesh
+            const mat = new THREE.MeshStandardMaterial({ map: createPlanetTexture(p.color, p.type), roughness: 0.7 });
+            const mesh = new THREE.Mesh(new THREE.SphereGeometry(p.r, 32, 32), mat);
+            mesh.name = p.name; // IMPORTANT FOR CLICKING
+            
+            // Saturn Rings
+            if(p.ring) {
+                const rGeo = new THREE.RingGeometry(p.r + 3, p.r + 10, 64);
+                const rMat = new THREE.MeshBasicMaterial({ color: 0xC0B090, side: THREE.DoubleSide, transparent: true, opacity: 0.6 });
+                const rings = new THREE.Mesh(rGeo, rMat);
+                rings.rotation.x = Math.PI/2;
+                rings.rotation.y = 0.3;
+                mesh.add(rings);
+            }
+
+            grp.add(mesh);
+            scene.add(grp);
+            
+            planets.push({ mesh: mesh, d: p.d, s: p.s, angle: Math.random() * Math.PI * 2 });
+            clickableObjects.push(mesh);
+        });
+
+        // Stars
+        const starGeo = new THREE.BufferGeometry();
+        const sCount = 6000;
+        const sPos = new Float32Array(sCount*3);
+        for(let i=0; i<sCount*3; i++) sPos[i] = (Math.random()-0.5)*4000;
+        starGeo.setAttribute('position', new THREE.BufferAttribute(sPos, 3));
+        const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({color:0xffffff, size:1.5, transparent:true, opacity:0.8}));
+        scene.add(stars);
+
+        // --- 6. INTERACTION LOGIC ---
+        let isPaused = false;
+
+        function onMouseClick(event) {
+            // Calculate mouse position in normalized device coordinates (-1 to +1)
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+            // Raycast
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(clickableObjects);
+
+            if (intersects.length > 0) {
+                const object = intersects[0].object;
+                showInfoCard(object.name);
+            }
+        }
+        
+        // Function to update mouse position for parallax effect (New)
+        function onMouseMove(event) {
+            currentMouseX = event.clientX;
+        }
+
+        function showInfoCard(name) {
+            const data = celestialInfo[name];
+            if (!data) return;
+
+            const card = document.getElementById('info-card');
+            const content = document.getElementById('card-content');
+            
+            document.getElementById('planet-name').innerText = name;
+            
+            // Generate HTML Content
+            content.innerHTML = `
+                <div class="info-section">
+                    <span class="info-label">History & Origin</span>
+                    <div class="info-text">${data.history}</div>
+                </div>
+                <div class="info-section">
+                    <span class="info-label">Composition</span>
+                    <div class="info-text">${data.composition}</div>
+                </div>
+                <div class="info-section">
+                    <span class="info-label">Fast Facts</span>
+                    <div class="info-text" style="white-space: pre-line;">${data.facts}</div>
+                </div>
+            `;
+
+            card.classList.add('active');
+            isPaused = true; // Pause animation to read
+        }
+
+        document.getElementById('close-btn').addEventListener('click', () => {
+            document.getElementById('info-card').classList.remove('active');
+            isPaused = false; // Resume animation
+        });
+
+        window.addEventListener('pointerdown', onMouseClick);
+        window.addEventListener('mousemove', onMouseMove); // Listen for mouse move (New)
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // --- 7. ANIMATION LOOP ---
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if (!isPaused) {
+                // Solar Rotation
+                sun.rotation.y += 0.002;
+
+                // Planetary Orbit
+                planets.forEach(p => {
+                    p.angle += p.s;
+                    p.mesh.position.x = Math.cos(p.angle) * p.d;
+                    p.mesh.position.z = Math.sin(p.angle) * p.d;
+                    p.mesh.rotation.y += 0.01;
+                });
+
+                // Stars Movement
+                stars.rotation.y -= 0.0002;
+
+                // Camera Parallax based on Mouse X position (New)
+                // Normalize mouse X position to a range like [-1, 1]
+                const normalizedMouseX = (currentMouseX / window.innerWidth) * 2 - 1;
+                
+                // Dampen the effect by a small factor
+                const parallaxFactor = 0.05;
+                
+                // Adjust the controls target to create a subtle panning/focus shift
+                controls.target.x = normalizedMouseX * parallaxFactor;
+            }
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        animate();
+
+    </script>
+</body>
+</html>
